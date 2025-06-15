@@ -7,7 +7,7 @@
     <style>
         body {
             margin: 0;
-            padding: 0;
+            padding: 20px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -16,6 +16,7 @@
             background-color: #f0f2f5;
             font-family: Arial, sans-serif;
             touch-action: manipulation;
+            box-sizing: border-box;
         }
         #game-container {
             position: relative;
@@ -24,11 +25,12 @@
         #game-canvas {
             border: 2px solid #333;
             background-color: #fff;
+            display: block;
         }
         #score {
             text-align: center;
             font-size: 20px;
-            margin-bottom: 15px;
+            margin: 10px 0;
             color: #333;
         }
         .controls {
@@ -37,7 +39,7 @@
                 ". up ."
                 "left down right";
             gap: 10px;
-            margin-top: 15px;
+            margin-bottom: 20px;
         }
         .control-btn {
             width: 60px;
@@ -52,6 +54,7 @@
             align-items: center;
             cursor: pointer;
             user-select: none;
+            touch-action: manipulation;
         }
         .control-btn:active {
             background-color: #3e8e41;
@@ -68,6 +71,18 @@
         #right {
             grid-area: right;
         }
+        #restart {
+            padding: 10px 20px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #restart:active {
+            background-color: #d32f2f;
+        }
     </style>
 </head>
 <body>
@@ -77,29 +92,135 @@
     </div>
 
     <div class="controls">
-        <button id="up" class="control-btn" onclick="move('UP')">↑</button>
-        <button id="left" class="control-btn" onclick="move('LEFT')">←</button>
-        <button id="down" class="control-btn" onclick="move('DOWN')">↓</button>
-        <button id="right" class="control-btn" onclick="move('RIGHT')">→</button>
+        <button id="up" class="control-btn" ontouchstart="move('UP')" onmousedown="move('UP')">↑</button>
+        <button id="left" class="control-btn" ontouchstart="move('LEFT')" onmousedown="move('LEFT')">←</button>
+        <button id="down" class="control-btn" ontouchstart="move('DOWN')" onmousedown="move('DOWN')">↓</button>
+        <button id="right" class="control-btn" ontouchstart="move('RIGHT')" onmousedown="move('RIGHT')">→</button>
     </div>
+
+    <button id="restart" onclick="restartGame()">Заново</button>
 
     <script>
         const canvas = document.getElementById("game-canvas");
         const ctx = canvas.getContext("2d");
         const scoreElement = document.getElementById("score");
+        const restartBtn = document.getElementById("restart");
         
         const box = 20;
-        let snake = [{x: 9 * box, y: 10 * box}];
-        let food = {
-            x: Math.floor(Math.random() * 15) * box,
-            y: Math.floor(Math.random() * 15) * box
-        };
-        let score = 0;
+        let snake;
+        let food;
         let direction;
+        let score;
         let game;
-        
-        // Обработка клавиш WASD и стрелок
+        let gameOver = false;
+
+        function initGame() {
+            snake = [{x: 9 * box, y: 10 * box}];
+            food = generateFood();
+            direction = undefined;
+            score = 0;
+            gameOver = false;
+            scoreElement.textContent = "Счет: 0";
+            restartBtn.style.display = "none";
+        }
+
+        function generateFood() {
+            return {
+                x: Math.floor(Math.random() * 15) * box,
+                y: Math.floor(Math.random() * 15) * box
+            };
+        }
+
+        function drawGame() {
+            if (gameOver) return;
+            
+            ctx.fillStyle = "#fff";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Рисуем змейку
+            for(let i = 0; i < snake.length; i++) {
+                ctx.fillStyle = i == 0 ? "#4CAF50" : "#8BC34A";
+                ctx.fillRect(snake[i].x, snake[i].y, box, box);
+                
+                ctx.strokeStyle = "#fff";
+                ctx.strokeRect(snake[i].x, snake[i].y, box, box);
+            }
+            
+            // Рисуем еду
+            ctx.fillStyle = "#FF5722";
+            ctx.fillRect(food.x, food.y, box, box);
+            
+            // Двигаем змейку
+            let head = {x: snake[0].x, y: snake[0].y};
+            
+            if(direction == "LEFT") head.x -= box;
+            if(direction == "UP") head.y -= box;
+            if(direction == "RIGHT") head.x += box;
+            if(direction == "DOWN") head.y += box;
+            
+            // Проверяем столкновения
+            if (checkCollision(head)) {
+                endGame();
+                return;
+            }
+            
+            // Проверяем съедание еды
+            if(head.x == food.x && head.y == food.y) {
+                score++;
+                scoreElement.textContent = "Счет: " + score;
+                food = generateFood();
+            } else {
+                snake.pop();
+            }
+            
+            snake.unshift(head);
+        }
+
+        function checkCollision(head) {
+            // Проверка стен
+            if(head.x < 0 || head.y < 0 || head.x >= canvas.width || head.y >= canvas.height) {
+                return true;
+            }
+            
+            // Проверка тела змейки (кроме головы)
+            for(let i = 1; i < snake.length; i++) {
+                if(head.x == snake[i].x && head.y == snake[i].y) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
+        function endGame() {
+            clearInterval(game);
+            gameOver = true;
+            restartBtn.style.display = "block";
+        }
+
+        function restartGame() {
+            clearInterval(game);
+            initGame();
+            game = setInterval(drawGame, 150);
+        }
+
+        function move(dir) {
+            if (gameOver) return;
+            
+            if (
+                (dir == "UP" && direction != "DOWN") ||
+                (dir == "LEFT" && direction != "RIGHT") ||
+                (dir == "RIGHT" && direction != "LEFT") ||
+                (dir == "DOWN" && direction != "UP")
+            ) {
+                direction = dir;
+            }
+        }
+
+        // Управление клавиатурой
         document.addEventListener("keydown", (e) => {
+            if (gameOver) return;
+            
             switch(e.key) {
                 case 'w': case 'W': case 'ArrowUp': 
                     if (direction != "DOWN") direction = "UP";
@@ -116,7 +237,7 @@
             }
         });
 
-        // Сенсорное управление свайпами
+        // Сенсорное управление
         let touchStartX = 0;
         let touchStartY = 0;
         
@@ -124,9 +245,11 @@
             touchStartX = e.touches[0].clientX;
             touchStartY = e.touches[0].clientY;
             e.preventDefault();
-        }, false);
+        }, {passive: false});
 
         canvas.addEventListener('touchend', (e) => {
+            if (gameOver) return;
+            
             const touchEndX = e.changedTouches[0].clientX;
             const touchEndY = e.changedTouches[0].clientY;
             const dx = touchEndX - touchStartX;
@@ -140,76 +263,13 @@
                 if (dy < -50 && direction != "DOWN") direction = "UP";
             }
             e.preventDefault();
-        }, false);
+        }, {passive: false});
 
-        // Управление через кнопки
-        function move(dir) {
-            if (
-                (dir == "UP" && direction != "DOWN") ||
-                (dir == "LEFT" && direction != "RIGHT") ||
-                (dir == "RIGHT" && direction != "LEFT") ||
-                (dir == "DOWN" && direction != "UP")
-            ) {
-                direction = dir;
-            }
-        }
-
-        function drawGame() {
-            ctx.fillStyle = "#fff";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            for(let i = 0; i < snake.length; i++) {
-                ctx.fillStyle = i == 0 ? "#4CAF50" : "#8BC34A";
-                ctx.fillRect(snake[i].x, snake[i].y, box, box);
-                
-                ctx.strokeStyle = "#fff";
-                ctx.strokeRect(snake[i].x, snake[i].y, box, box);
-            }
-            
-            ctx.fillStyle = "#FF5722";
-            ctx.fillRect(food.x, food.y, box, box);
-            
-            let head = {x: snake[0].x, y: snake[0].y};
-            
-            if(direction == "LEFT") head.x -= box;
-            if(direction == "UP") head.y -= box;
-            if(direction == "RIGHT") head.x += box;
-            if(direction == "DOWN") head.y += box;
-            
-            if(head.x == food.x && head.y == food.y) {
-                score++;
-                scoreElement.textContent = "Счет: " + score;
-                food = {
-                    x: Math.floor(Math.random() * 15) * box,
-                    y: Math.floor(Math.random() * 15) * box
-                };
-            } else {
-                snake.pop();
-            }
-            
-            snake.unshift(head);
-            
-            if(head.x < 0 || head.y < 0 || head.x >= canvas.width || head.y >= canvas.height || collision(head, snake)) {
-                clearInterval(game);
-                alert("Игра окончена! Счет: " + score);
-                if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
-                    Telegram.WebApp.close();
-                }
-            }
-        }
-        
-        function collision(head, array) {
-            for(let i = 0; i < array.length; i++) {
-                if(head.x == array[i].x && head.y == array[i].y) {
-                    return true;
-                }
-            }
-            return false;
-        }
-        
+        // Инициализация игры
+        initGame();
         game = setInterval(drawGame, 150);
 
-        // Инициализация Telegram WebApp
+        // Telegram WebApp
         if (typeof Telegram !== 'undefined' && Telegram.WebApp) {
             Telegram.WebApp.ready();
             Telegram.WebApp.expand();
